@@ -123,11 +123,41 @@ class ImageRefactorApp:
             if self.normalizationType.get() == '0':
                 self.histogramExpansion() if self.switchOptimizedState.get() == "off" else self.histogramExpansionOptimized()
             elif self.normalizationType.get() == '1':
-                pass
+                self.histogramEqualization()
             else:
                 raise Exception(f"Nie ma takiej opcji: {self.normalizationType.get()}")
         else:
             self.errorPopup("Error: There's no image loaded.")
+
+    def histogramEqualization(self):
+        self.measureTime("START")
+        if self.image:
+            histogramRed, histogramGreen, histogramBlue = self.getHistograms()
+            csRed = self.getCumulativeSumHistogram(histogramRed)
+            csGreen = self.getCumulativeSumHistogram(histogramGreen)
+            csBlue = self.getCumulativeSumHistogram(histogramBlue)
+            # normalization
+            csRed = (csRed - csRed.min()) * 255 / (csRed.max()-csRed.min())
+            csGreen = (csGreen - csGreen.min()) * 255 / (csGreen.max() - csGreen.min())
+            csBlue = (csBlue - csBlue.min()) * 255 / (csBlue.max() - csBlue.min())
+            csRed = csRed.astype(np.uint8)
+            csGreen = csGreen.astype(np.uint8)
+            csBlue = csBlue.astype(np.uint8)
+            height, width, color = self.pixels.shape
+            for y in range(0, height):
+                for x in range(0, width):
+                    self.pixels[y, x, 0] = csRed[self.pixels[y, x, 0]]
+                    self.pixels[y, x, 1] = csGreen[self.pixels[y, x, 1]]
+                    self.pixels[y, x, 2] = csBlue[self.pixels[y, x, 2]]
+            self.limitPixelsAndShowImage(self.pixels, True)
+        self.measureTime("END")
+
+    def getCumulativeSumHistogram(self, histogram):
+        cumulativeSumHistogram = deepcopy(histogram)
+        for i in range(1, len(histogram)):
+            cumulativeSumHistogram[i] += cumulativeSumHistogram[i-1]
+        print(cumulativeSumHistogram)
+        return cumulativeSumHistogram
 
     def histogramExpansion(self):
         self.measureTime("START")
