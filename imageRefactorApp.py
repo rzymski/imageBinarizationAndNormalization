@@ -101,6 +101,9 @@ class ImageRefactorApp:
         self.movedY = 0
         self.originalImage = None
         self.pixels = None
+        self.histogramRed = None
+        self.histogramGreen = None
+        self.histogramBlue = None
 
     def validateEntry(self, P):
         if P == "" or (str.isdigit(P)):
@@ -142,15 +145,43 @@ class ImageRefactorApp:
                 if not self.thresholdEntry.get():
                     self.errorPopup("Error:Percent of black pixels was not given.\nYou must give percent of black pixels parameter to do that binarization")
                 print("Do binarization by percent of black pixels")
+                self.createHistogram()
             else:
                 print("Nie ma takiej operacji")
         else:
             self.errorPopup("Error: There's no image loaded.")
 
+    def createHistogram(self):
+        self.measureTime("START")
+        if self.image:
+            height, width, color = self.pixels.shape
+            self.histogramRed = np.zeros(256, dtype=np.intc)
+            self.histogramGreen = np.zeros(256, dtype=np.intc)
+            self.histogramBlue = np.zeros(256, dtype=np.intc)
+            # for y in range(height):
+            #     for x in range(width):
+            #         self.histogramRed[self.pixels[y, x, 0]] += 1
+            #         self.histogramGreen[self.pixels[y, x, 1]] += 1
+            #         self.histogramBlue[self.pixels[y, x, 2]] += 1
+            for i in range(3):
+                uniqueValues, counts = np.unique(self.pixels[:, :, i], return_counts=True)
+                #print(uniqueValues, counts)
+                for value, count in zip(uniqueValues, counts):
+                    if i == 0:
+                        self.histogramRed[value] = count
+                    elif i == 1:
+                        self.histogramGreen[value] = count
+                    else:
+                        self.histogramBlue[value] = count
+            #print(self.histogramRed)
+            # print(self.histogramGreen)
+            # print(self.histogramBlue)
+        self.measureTime("END")
+
     def thresholdBinarization(self, thresholdValue):
         self.measureTime("START")
         if self.image:
-            # lookup table
+            # # lookup table
             thresholdTable = np.zeros(256, dtype=np.uint8)
             for i in range(256):
                 thresholdTable[i] = 255 if i >= thresholdValue else 0
