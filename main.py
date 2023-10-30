@@ -8,6 +8,12 @@ if __name__ == "__main__":
 
 # import numpy as np
 #
+# array = np.array([[1,2,3],[4,5,6],[7,8,9]], dtype=np.intc)
+# print(array)
+# array[:, 1] = (array[:, 1] + 10) * 255
+# print(array)
+
+
 # tab = np.zeros(256, dtype=np.uint8)
 #
 # arr = np.array([1, 10, 20, 255, 10, 50, 0, 1, 10, 255], dtype=np.uint8)

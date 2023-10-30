@@ -62,10 +62,10 @@ class ImageRefactorApp:
         self.normalizationLabel.grid(row=4, column=0, sticky="WE")
         # RadioButtons for normalization
         self.normalizationType = StringVar(value="0")
-        self.histogramExpansion = Radiobutton(self.normalizationLabel, text="Expand histogram", value="0", variable=self.normalizationType)
-        self.histogramExpansion.grid(row=0, column=0, sticky="W")
-        self.histogramEqualization = Radiobutton(self.normalizationLabel, text="Equalize histogram", value="1", variable=self.normalizationType)
-        self.histogramEqualization.grid(row=1, column=0, sticky="W")
+        self.histogramExpansionRadioButton = Radiobutton(self.normalizationLabel, text="Expand histogram", value="0", variable=self.normalizationType)
+        self.histogramExpansionRadioButton.grid(row=0, column=0, sticky="W")
+        self.histogramEqualizationRadioButton = Radiobutton(self.normalizationLabel, text="Equalize histogram", value="1", variable=self.normalizationType)
+        self.histogramEqualizationRadioButton.grid(row=1, column=0, sticky="W")
         self.histogramSubmitButton = Button(self.normalizationLabel, text="Do normalization", command=self.applyNormalization)
         self.histogramSubmitButton.grid(row=2, column=0, sticky="WE")
         # LabelFrame for binarization
@@ -75,9 +75,9 @@ class ImageRefactorApp:
         self.switchOptimizedState = StringVar(value="on")
         self.optimizationSwitch = ctk.CTkSwitch(self.binarizationOperationsLabel, text="Optimization", variable=self.switchOptimizedState, onvalue="on", offvalue="off", button_color="black")  # progress_color="blue"
         self.optimizationSwitch.grid(row=0, column=0, sticky="WE")
-        self.switchConvertToGray = StringVar(value="yes")
-        self.switchConvertToGray = ctk.CTkSwitch(self.binarizationOperationsLabel, text="Convert to greyscale before binarization", variable=self.switchConvertToGray, onvalue="yes", offvalue="no", button_color="black")  # progress_color="blue"
-        self.switchConvertToGray.grid(row=1, column=0, sticky="WE")
+        # self.switchConvertToGray = StringVar(value="yes")
+        # self.switchConvertToGray = ctk.CTkSwitch(self.binarizationOperationsLabel, text="Convert to greyscale before binarization", variable=self.switchConvertToGray, onvalue="yes", offvalue="no", button_color="black")  # progress_color="blue"
+        # self.switchConvertToGray.grid(row=1, column=0, sticky="WE")
         self.operationType = StringVar(value="2")
         self.radioManually = Radiobutton(self.binarizationOperationsLabel, text="Manually", value="2", variable=self.operationType, command=self.onOperationSelect)
         self.radioManually.grid(row=2, column=0, sticky="W", columnspan=2)
@@ -101,9 +101,7 @@ class ImageRefactorApp:
         self.movedY = 0
         self.originalImage = None
         self.pixels = None
-        self.histogramRed = None
-        self.histogramGreen = None
-        self.histogramBlue = None
+        self.histogram = None
 
     def validateEntry(self, P):
         if P == "" or (str.isdigit(P)):
@@ -123,7 +121,7 @@ class ImageRefactorApp:
         if self.image:
             print(f"Zastosowano normalizacje: {self.normalizationType.get()}")
             if self.normalizationType.get() == '0':
-                pass
+                self.histogramExpansion() if self.switchOptimizedState.get() == "off" else self.histogramExpansionOptimized()
             elif self.normalizationType.get() == '1':
                 pass
             else:
@@ -131,58 +129,175 @@ class ImageRefactorApp:
         else:
             self.errorPopup("Error: There's no image loaded.")
 
+    def histogramExpansion(self):
+        self.measureTime("START")
+        if self.image:
+            histogramRed, histogramGreen, histogramBlue = self.getHistograms()
+            count = 0
+            for i, h in enumerate([histogramRed, histogramGreen, histogramBlue]):
+                minIndex = self.findMin(h)
+                maxIndex = self.findMax(h)
+                print(f"min={minIndex} max={maxIndex}")
+                if minIndex == maxIndex:
+                    self.errorPopup("Nie mozna rozciagnac histogramu, bo min == max")
+                if minIndex == 0 and maxIndex == 255:
+                    count += 1
+                    continue
+                height, width, color = self.pixels.shape
+                for y in range(0, height):
+                    for x in range(0, width):
+                        self.pixels[y, x, i] = int((self.pixels[y, x, i] - minIndex) * 255 / (maxIndex-minIndex))
+            if count == 3:
+                self.errorPopup("Nie mozna bardziej rozciagnac histogramu, bo min=0 i max=255")
+            self.limitPixelsAndShowImage(self.pixels, True)
+        self.measureTime("END")
+
+    def histogramExpansionOptimized(self):
+        self.measureTime("START")
+        if self.image:
+            histogramRed, histogramGreen, histogramBlue = self.getHistograms()
+            count = 0
+            for i, h in enumerate([histogramRed, histogramGreen, histogramBlue]):
+                minIndex = self.findMin(h)
+                maxIndex = self.findMax(h)
+                # print(f"min={minIndex} max={maxIndex}")
+                if minIndex == maxIndex:
+                    self.errorPopup("Nie mozna rozciagnac histogramu, bo min == max")
+                if minIndex == 0 and maxIndex == 255:
+                    count += 1
+                    continue
+                self.pixels[:, :, i] = ((self.pixels[:, :, i] - minIndex) * 255 / (maxIndex - minIndex))
+            if count == 3:
+                self.errorPopup("Nie mozna bardziej rozciagnac histogramu, bo min=0 i max=255")
+            self.limitPixelsAndShowImage(self.pixels, True)
+        self.measureTime("END")
+
+    def findMax(self, histogram):
+        maxIndex = 255
+        for i in range(255, -1, -1):
+            if histogram[i] == 0:
+                maxIndex -= 1
+            else:
+                return maxIndex
+        return None
+
+    def findMin(self, histogram):
+        minIndex = 0
+        for i in range(256):
+            if histogram[i] == 0:
+                minIndex += 1
+            else:
+                return minIndex
+        return None
+
+    def getHistograms(self):
+        self.measureTime("START")
+        histogramRed, histogramGreen, histogramBlue = None, None, None
+        if self.image:
+            for i in range(3):
+                histogram = np.zeros(256, dtype=np.int32)
+                # height, width, color = self.pixels.shape
+                # for y in range(height):
+                #     for x in range(width):
+                #         histogram[self.pixels[y, x, i]] += 1
+                uniqueValues, counts = np.unique(self.pixels[:, :, i], return_counts=True)
+                for value, count in zip(uniqueValues, counts):
+                    histogram[value] = count
+                if i == 0:
+                    histogramRed = histogram
+                elif i == 1:
+                    histogramGreen = histogram
+                else:
+                    histogramBlue = histogram
+        self.measureTime("END")
+        return histogramRed, histogramGreen, histogramBlue
+
+
     def doBinarization(self):
         if self.image:
+            self.greyConversion()
             if self.operationType.get() == '2':
                 if not self.thresholdEntry.get():
                     self.errorPopup("Error:Threshold was not given.\nYou must give threshold parameter to do that binarization")
                 else:
                     threshold = int(self.thresholdEntry.get())
-                    if self.switchConvertToGray.get() == "yes":
-                        self.greyConversion()
-                    self.thresholdBinarization(threshold) if self.switchOptimizedState.get() == "off" else self.thresholdBinarizationOptimized(threshold)
+                    if 0 <= threshold <= 255:
+                        self.thresholdBinarization(threshold) if self.switchOptimizedState.get() == "off" else self.thresholdBinarizationOptimized(threshold)
+                    else:
+                        self.errorPopup(f"Error:Threshold must be in range of 0 to 255 not {threshold}")
             elif self.operationType.get() == '7':
                 if not self.thresholdEntry.get():
                     self.errorPopup("Error:Percent of black pixels was not given.\nYou must give percent of black pixels parameter to do that binarization")
-                print("Do binarization by percent of black pixels")
-                self.createHistogram()
+                else:
+                    percent = int(self.thresholdEntry.get())
+                    if 0 <= percent <= 100:
+                        self.percentBlackPixelsBinarization(percent) if self.switchOptimizedState.get() == "off" else self.percentBlackPixelsBinarizationOptimized(percent)
+                    else:
+                        self.errorPopup(f"Error:Percent of black pixels must be in range of 0 to 100 not {percent}")
             else:
                 print("Nie ma takiej operacji")
         else:
             self.errorPopup("Error: There's no image loaded.")
 
-    def createHistogram(self):
+    def percentBlackPixelsBinarization(self, percent):
         self.measureTime("START")
         if self.image:
+            self.createHistogram()
             height, width, color = self.pixels.shape
-            self.histogramRed = np.zeros(256, dtype=np.intc)
-            self.histogramGreen = np.zeros(256, dtype=np.intc)
-            self.histogramBlue = np.zeros(256, dtype=np.intc)
+            allColor = height*width
+            requirement = allColor * percent / 100
+            sumValues = 0
+            thresholdIndex = 0
+            for index, value in enumerate(self.histogram):
+                sumValues += value
+                if sumValues >= requirement:
+                    thresholdIndex = index
+                    break
+            # lookup table
+            thresholdTable = np.zeros(256, dtype=np.int32)
+            for i in range(256):
+                thresholdTable[i] = 255 if i >= thresholdIndex else 0
+            height, width, _ = self.pixels.shape
+            for y in range(0, height):
+                for x in range(0, width):
+                    for c in range(3):
+                        self.pixels[y, x, c] = thresholdTable[self.pixels[y, x, c]]
+            self.limitPixelsAndShowImage(self.pixels, True)
+        self.measureTime("END")
+
+
+    def percentBlackPixelsBinarizationOptimized(self, percent):
+        if self.image:
+            self.createHistogram()
+            height, width, color = self.pixels.shape
+            allColor = height*width
+            requirement = allColor * percent / 100
+            sumValues = 0
+            for index, value in enumerate(self.histogram):
+                sumValues += value
+                if sumValues >= requirement:
+                    return self.thresholdBinarizationOptimized(index)
+
+    def createHistogram(self, forAllColors=False):
+        self.measureTime("START")
+        if self.image:
+            self.histogram = np.zeros(256, dtype=np.int32)
+            # height, width, color = self.pixels.shape
             # for y in range(height):
             #     for x in range(width):
-            #         self.histogramRed[self.pixels[y, x, 0]] += 1
-            #         self.histogramGreen[self.pixels[y, x, 1]] += 1
-            #         self.histogramBlue[self.pixels[y, x, 2]] += 1
-            for i in range(3):
-                uniqueValues, counts = np.unique(self.pixels[:, :, i], return_counts=True)
-                #print(uniqueValues, counts)
-                for value, count in zip(uniqueValues, counts):
-                    if i == 0:
-                        self.histogramRed[value] = count
-                    elif i == 1:
-                        self.histogramGreen[value] = count
-                    else:
-                        self.histogramBlue[value] = count
-            #print(self.histogramRed)
-            # print(self.histogramGreen)
-            # print(self.histogramBlue)
+            #         self.histogram[self.pixels[y, x, 0]] += 1
+            uniqueValues, counts = np.unique(self.pixels[:, :, 0], return_counts=True)
+            #print(uniqueValues, counts)
+            for value, count in zip(uniqueValues, counts):
+                self.histogram[value] = count
+            # print(self.histogram)
         self.measureTime("END")
 
     def thresholdBinarization(self, thresholdValue):
         self.measureTime("START")
         if self.image:
             # # lookup table
-            thresholdTable = np.zeros(256, dtype=np.uint8)
+            thresholdTable = np.zeros(256, dtype=np.int32)
             for i in range(256):
                 thresholdTable[i] = 255 if i >= thresholdValue else 0
             height, width, _ = self.pixels.shape
@@ -198,7 +313,7 @@ class ImageRefactorApp:
         self.measureTime("START")
         if self.image:
             # lookup table
-            thresholdTable = np.zeros(256, dtype=np.uint8)
+            thresholdTable = np.zeros(256, dtype=np.int32)
             for i in range(256):
                 thresholdTable[i] = 255 if i >= thresholdValue else 0
             self.pixels = thresholdTable[self.pixels]  # version with use of lookup table
@@ -283,7 +398,7 @@ class ImageRefactorApp:
         self.image = Image.open(filePath)
         if self.image is None:
             return
-        self.pixels = np.array(self.image, dtype=np.uint8)
+        self.pixels = np.array(self.image, dtype=np.int32)
         self.originalImage = deepcopy(self.image)
         self.tkImage = ImageTk.PhotoImage(self.image)
         self.settingsAfterLoad()
@@ -293,7 +408,7 @@ class ImageRefactorApp:
             self.image = deepcopy(self.originalImage)
             if self.image is None:
                 return
-            self.pixels = np.array(self.image, dtype=np.uint8)
+            self.pixels = np.array(self.image, dtype=np.int32)
             self.tkImage = ImageTk.PhotoImage(self.image)
             self.settingsAfterLoad()
 
