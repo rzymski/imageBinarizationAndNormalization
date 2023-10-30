@@ -1,5 +1,6 @@
 from tkinter import *
 # import tkinter as tk
+import customtkinter as ctk
 from PIL import Image, ImageTk
 from tkinter.filedialog import asksaveasfilename, askopenfilename
 import time
@@ -71,20 +72,26 @@ class ImageRefactorApp:
         self.binarizationOperationsLabel = LabelFrame(self.frame, text="Binarization", padx=10, pady=10, labelanchor="nw")
         self.binarizationOperationsLabel.grid(row=5, column=0, sticky="WE")
         # RadioButtons for binarization
-        self.operationType = StringVar(value="0")
-        self.radioManually = Radiobutton(self.binarizationOperationsLabel, text="Manually", value="0", variable=self.operationType, command=self.onOperationSelect)
-        self.radioManually.grid(row=0, column=0, sticky="W", columnspan=2)
-        self.radioPercentBlackSelection = Radiobutton(self.binarizationOperationsLabel, text="Percent Black Selection", value="5", variable=self.operationType, command=self.onOperationSelect)
-        self.radioPercentBlackSelection.grid(row=5, column=0, sticky="W", columnspan=2)
+        self.switchOptimizedState = StringVar(value="on")
+        self.optimizationSwitch = ctk.CTkSwitch(self.binarizationOperationsLabel, text="Optimization", variable=self.switchOptimizedState, onvalue="on", offvalue="off", button_color="black")  # progress_color="blue"
+        self.optimizationSwitch.grid(row=0, column=0, sticky="WE")
+        self.switchConvertToGray = StringVar(value="yes")
+        self.switchConvertToGray = ctk.CTkSwitch(self.binarizationOperationsLabel, text="Convert to greyscale before binarization", variable=self.switchConvertToGray, onvalue="yes", offvalue="no", button_color="black")  # progress_color="blue"
+        self.switchConvertToGray.grid(row=1, column=0, sticky="WE")
+        self.operationType = StringVar(value="2")
+        self.radioManually = Radiobutton(self.binarizationOperationsLabel, text="Manually", value="2", variable=self.operationType, command=self.onOperationSelect)
+        self.radioManually.grid(row=2, column=0, sticky="W", columnspan=2)
+        self.radioPercentBlackSelection = Radiobutton(self.binarizationOperationsLabel, text="Percent Black Selection", value="7", variable=self.operationType, command=self.onOperationSelect)
+        self.radioPercentBlackSelection.grid(row=7, column=0, sticky="W", columnspan=2)
         # Parameters for binarization
         vcmd = (self.binarizationOperationsLabel.register(self.validateEntry))
         self.parameterOperationsLabel = LabelFrame(self.binarizationOperationsLabel, text="Threshold:", padx=10, pady=10, labelanchor="nw")
-        self.parameterOperationsLabel.grid(row=6, column=0, sticky="WE")
-        self.thresholdEntry = Entry(self.parameterOperationsLabel, validate='all', validatecommand=(vcmd, '%P', '0', '255'))
+        self.parameterOperationsLabel.grid(row=8, column=0, sticky="WE")
+        self.thresholdEntry = Entry(self.parameterOperationsLabel, validate='all', validatecommand=(vcmd, '%P'))
         self.thresholdEntry.grid(row=0, column=1)
         # Submit button for binarization
         self.operationSubmitButton = Button(self.binarizationOperationsLabel, text="Perform binarization", command=self.doBinarization)
-        self.operationSubmitButton.grid(row=7, column=0, sticky="WE", columnspan=2)
+        self.operationSubmitButton.grid(row=9, column=0, sticky="WE", columnspan=2)
 
         self.imageSpace = Canvas(self.root, bg="white")
         self.imageSpace.pack(fill="both", expand=True)
@@ -95,16 +102,16 @@ class ImageRefactorApp:
         self.originalImage = None
         self.pixels = None
 
-    def validateEntry(self, P, minValue, maxValue):
-        if P == "" or (str.isdigit(P) and int(minValue) <= int(P) <= int(maxValue)):
+    def validateEntry(self, P):
+        if P == "" or (str.isdigit(P)):
             return True
         else:
             return False
 
     def onOperationSelect(self):
-        if self.operationType.get() == '0':
+        if self.operationType.get() == '2':
             self.parameterOperationsLabel.configure(text="Threshold:")
-        elif self.operationType.get() == '5':
+        elif self.operationType.get() == '7':
             self.parameterOperationsLabel.configure(text="Procent of black pixels:")
         else:
             raise Exception("Nie ma takiej opcji")
@@ -123,12 +130,15 @@ class ImageRefactorApp:
 
     def doBinarization(self):
         if self.image:
-            if self.operationType.get() == '0':
+            if self.operationType.get() == '2':
                 if not self.thresholdEntry.get():
                     self.errorPopup("Error:Threshold was not given.\nYou must give threshold parameter to do that binarization")
-                print("Do binarization by manual threshold")
-                self.thresholdBinarization(self.thresholdEntry.get())
-            elif self.operationType.get() == '5':
+                else:
+                    threshold = int(self.thresholdEntry.get())
+                    if self.switchConvertToGray.get() == "yes":
+                        self.greyConversion()
+                    self.thresholdBinarization(threshold) if self.switchOptimizedState.get() == "off" else self.thresholdBinarizationOptimized(threshold)
+            elif self.operationType.get() == '7':
                 if not self.thresholdEntry.get():
                     self.errorPopup("Error:Percent of black pixels was not given.\nYou must give percent of black pixels parameter to do that binarization")
                 print("Do binarization by percent of black pixels")
@@ -138,10 +148,48 @@ class ImageRefactorApp:
             self.errorPopup("Error: There's no image loaded.")
 
     def thresholdBinarization(self, thresholdValue):
-        height, width, _ = self.pixels.shape
-        for y in range(0, height):
-            for x in range(0, width):
-                pass
+        self.measureTime("START")
+        if self.image:
+            # lookup table
+            thresholdTable = np.zeros(256, dtype=np.uint8)
+            for i in range(256):
+                thresholdTable[i] = 255 if i >= thresholdValue else 0
+            height, width, _ = self.pixels.shape
+            for y in range(0, height):
+                for x in range(0, width):
+                    for c in range(3):
+                        self.pixels[y, x, c] = thresholdTable[self.pixels[y, x, c]]
+                        #self.pixels[y, x, c] = 255 if self.pixels[y, x, c] >= thresholdValue else 0
+            self.limitPixelsAndShowImage(self.pixels, True)
+        self.measureTime("END")
+
+    def thresholdBinarizationOptimized(self, thresholdValue):
+        self.measureTime("START")
+        if self.image:
+            # lookup table
+            thresholdTable = np.zeros(256, dtype=np.uint8)
+            for i in range(256):
+                thresholdTable[i] = 255 if i >= thresholdValue else 0
+            self.pixels = thresholdTable[self.pixels]  # version with use of lookup table
+            #self.pixels = np.where(self.pixels >= thresholdValue, 255, 0) #  simple version
+            self.limitPixelsAndShowImage(self.pixels, True)
+        self.measureTime("END")
+
+    def greyConversion(self, adjusted=True):
+        self.measureTime("START")
+        if self.image:
+            # Zrobienie sredniej z wyswietlanych pixeli na ekranie
+            if adjusted:
+                averages = 0.299 * self.pixels[:, :, 0] + 0.587 * self.pixels[:, :, 1] + 0.114 * self.pixels[:, :, 2]
+                self.pixels[:, :, 0] = averages
+                self.pixels[:, :, 1] = averages
+                self.pixels[:, :, 2] = averages
+            else:
+                averages = (self.pixels[:, :, 0] + self.pixels[:, :, 1] + self.pixels[:, :, 2]) / 3
+                self.pixels[:, :, 0] = averages
+                self.pixels[:, :, 1] = averages
+                self.pixels[:, :, 2] = averages
+        self.measureTime("END")
 
     def errorPopup(self, information=None):
         self.errorLabel = Label(Toplevel(), text=information, padx=20, pady=20)
@@ -204,7 +252,7 @@ class ImageRefactorApp:
         self.image = Image.open(filePath)
         if self.image is None:
             return
-        self.pixels = np.array(self.image, dtype=np.int32)
+        self.pixels = np.array(self.image, dtype=np.uint8)
         self.originalImage = deepcopy(self.image)
         self.tkImage = ImageTk.PhotoImage(self.image)
         self.settingsAfterLoad()
@@ -214,7 +262,7 @@ class ImageRefactorApp:
             self.image = deepcopy(self.originalImage)
             if self.image is None:
                 return
-            self.pixels = np.array(self.image, dtype=np.int32)
+            self.pixels = np.array(self.image, dtype=np.uint8)
             self.tkImage = ImageTk.PhotoImage(self.image)
             self.settingsAfterLoad()
 
