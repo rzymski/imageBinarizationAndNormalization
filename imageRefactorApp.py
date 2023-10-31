@@ -81,8 +81,12 @@ class ImageRefactorApp:
         self.operationType = StringVar(value="2")
         self.radioManually = Radiobutton(self.binarizationOperationsLabel, text="Manually", value="2", variable=self.operationType, command=self.onOperationSelect)
         self.radioManually.grid(row=2, column=0, sticky="W", columnspan=2)
-        self.radioPercentBlackSelection = Radiobutton(self.binarizationOperationsLabel, text="Percent Black Selection", value="7", variable=self.operationType, command=self.onOperationSelect)
-        self.radioPercentBlackSelection.grid(row=7, column=0, sticky="W", columnspan=2)
+        self.radioPercentBlackSelection = Radiobutton(self.binarizationOperationsLabel, text="Percent Black Selection", value="3", variable=self.operationType, command=self.onOperationSelect)
+        self.radioPercentBlackSelection.grid(row=3, column=0, sticky="W", columnspan=2)
+        self.radioMeanIteration = Radiobutton(self.binarizationOperationsLabel, text="Mean iteration", value="4", variable=self.operationType, command=self.onOperationSelect)
+        self.radioMeanIteration.grid(row=4, column=0, sticky="W", columnspan=2)
+        self.radioMinimumError = Radiobutton(self.binarizationOperationsLabel, text="Minimum error", value="6", variable=self.operationType, command=self.onOperationSelect)
+        self.radioMinimumError.grid(row=6, column=0, sticky="W", columnspan=2)
         # Parameters for binarization
         vcmd = (self.binarizationOperationsLabel.register(self.validateEntry))
         self.parameterOperationsLabel = LabelFrame(self.binarizationOperationsLabel, text="Threshold:", padx=10, pady=10, labelanchor="nw")
@@ -101,7 +105,6 @@ class ImageRefactorApp:
         self.movedY = 0
         self.originalImage = None
         self.pixels = None
-        self.histogram = None
 
     def validateEntry(self, P):
         if P == "" or (str.isdigit(P)):
@@ -111,25 +114,32 @@ class ImageRefactorApp:
 
     def onOperationSelect(self):
         if self.operationType.get() == '2':
+            self.parameterOperationsLabel.grid(row=8, column=0, sticky="WE")
             self.parameterOperationsLabel.configure(text="Threshold:")
-        elif self.operationType.get() == '7':
+        elif self.operationType.get() == '3':
+            self.parameterOperationsLabel.grid(row=8, column=0, sticky="WE")
             self.parameterOperationsLabel.configure(text="Procent of black pixels:")
+        elif self.operationType.get() == '4':
+            self.parameterOperationsLabel.grid_forget()
+        elif self.operationType.get() == '6':
+            self.parameterOperationsLabel.grid_forget()
         else:
             raise Exception("Nie ma takiej opcji")
 
     def applyNormalization(self):
         if self.image:
             print(f"Zastosowano normalizacje: {self.normalizationType.get()}")
+            optimization = False if self.switchOptimizedState.get() == "off" else True
             if self.normalizationType.get() == '0':
-                self.histogramExpansion() if self.switchOptimizedState.get() == "off" else self.histogramExpansionOptimized()
+                self.histogramExpansion(optimization)
             elif self.normalizationType.get() == '1':
-                self.histogramEqualization()
+                self.histogramEqualization(optimization)
             else:
                 raise Exception(f"Nie ma takiej opcji: {self.normalizationType.get()}")
         else:
             self.errorPopup("Error: There's no image loaded.")
 
-    def histogramEqualization(self):
+    def histogramEqualization(self, optimized):
         self.measureTime("START")
         if self.image:
             histogramRed, histogramGreen, histogramBlue = self.getHistograms()
@@ -143,12 +153,17 @@ class ImageRefactorApp:
             csRed = csRed.astype(np.uint8)
             csGreen = csGreen.astype(np.uint8)
             csBlue = csBlue.astype(np.uint8)
-            height, width, color = self.pixels.shape
-            for y in range(0, height):
-                for x in range(0, width):
-                    self.pixels[y, x, 0] = csRed[self.pixels[y, x, 0]]
-                    self.pixels[y, x, 1] = csGreen[self.pixels[y, x, 1]]
-                    self.pixels[y, x, 2] = csBlue[self.pixels[y, x, 2]]
+            if optimized:
+                self.pixels[:, :, 0] = csRed[self.pixels[:, :, 0]]
+                self.pixels[:, :, 1] = csGreen[self.pixels[:, :, 1]]
+                self.pixels[:, :, 2] = csBlue[self.pixels[:, :, 2]]
+            else:
+                height, width, color = self.pixels.shape
+                for y in range(0, height):
+                    for x in range(0, width):
+                        self.pixels[y, x, 0] = csRed[self.pixels[y, x, 0]]
+                        self.pixels[y, x, 1] = csGreen[self.pixels[y, x, 1]]
+                        self.pixels[y, x, 2] = csBlue[self.pixels[y, x, 2]]
             self.limitPixelsAndShowImage(self.pixels, True)
         self.measureTime("END")
 
@@ -156,14 +171,13 @@ class ImageRefactorApp:
         cumulativeSumHistogram = deepcopy(histogram)
         for i in range(1, len(histogram)):
             cumulativeSumHistogram[i] += cumulativeSumHistogram[i-1]
-        print(cumulativeSumHistogram)
         return cumulativeSumHistogram
 
-    def histogramExpansion(self):
+    def histogramExpansion(self, optimized):
         self.measureTime("START")
         if self.image:
             histogramRed, histogramGreen, histogramBlue = self.getHistograms()
-            count = 0
+            countColorsNotPossibleToExpand = 0
             for i, h in enumerate([histogramRed, histogramGreen, histogramBlue]):
                 minIndex = self.findMin(h)
                 maxIndex = self.findMax(h)
@@ -171,34 +185,17 @@ class ImageRefactorApp:
                 if minIndex == maxIndex:
                     self.errorPopup("Nie mozna rozciagnac histogramu, bo min == max")
                 if minIndex == 0 and maxIndex == 255:
-                    count += 1
+                    countColorsNotPossibleToExpand += 1
                     continue
-                height, width, color = self.pixels.shape
-                for y in range(0, height):
-                    for x in range(0, width):
-                        self.pixels[y, x, i] = int((self.pixels[y, x, i] - minIndex) * 255 / (maxIndex-minIndex))
-            if count == 3:
-                self.errorPopup("Nie mozna bardziej rozciagnac histogramu, bo min=0 i max=255")
-            self.limitPixelsAndShowImage(self.pixels, True)
-        self.measureTime("END")
-
-    def histogramExpansionOptimized(self):
-        self.measureTime("START")
-        if self.image:
-            histogramRed, histogramGreen, histogramBlue = self.getHistograms()
-            count = 0
-            for i, h in enumerate([histogramRed, histogramGreen, histogramBlue]):
-                minIndex = self.findMin(h)
-                maxIndex = self.findMax(h)
-                # print(f"min={minIndex} max={maxIndex}")
-                if minIndex == maxIndex:
-                    self.errorPopup("Nie mozna rozciagnac histogramu, bo min == max")
-                if minIndex == 0 and maxIndex == 255:
-                    count += 1
-                    continue
-                self.pixels[:, :, i] = ((self.pixels[:, :, i] - minIndex) * 255 / (maxIndex - minIndex))
-            if count == 3:
-                self.errorPopup("Nie mozna bardziej rozciagnac histogramu, bo min=0 i max=255")
+                if optimized:
+                    self.pixels[:, :, i] = ((self.pixels[:, :, i] - minIndex) * 255 / (maxIndex - minIndex))
+                else:
+                    height, width, color = self.pixels.shape
+                    for y in range(0, height):
+                        for x in range(0, width):
+                            self.pixels[y, x, i] = int((self.pixels[y, x, i] - minIndex) * 255 / (maxIndex-minIndex))
+            if countColorsNotPossibleToExpand == 3:
+                self.errorPopup("Nie mozna bardziej rozciagnac histogramu, bo min=0 i max=255 w wszystkich kolorach")
             self.limitPixelsAndShowImage(self.pixels, True)
         self.measureTime("END")
 
@@ -226,6 +223,7 @@ class ImageRefactorApp:
         if self.image:
             for i in range(3):
                 histogram = np.zeros(256, dtype=np.int32)
+                # zakomentarzowa wersja znacznie wolniejsza
                 # height, width, color = self.pixels.shape
                 # for y in range(height):
                 #     for x in range(width):
@@ -242,43 +240,93 @@ class ImageRefactorApp:
         self.measureTime("END")
         return histogramRed, histogramGreen, histogramBlue
 
-
     def doBinarization(self):
         if self.image:
             self.greyConversion()
+            optimization = False if self.switchOptimizedState.get() == "off" else True
             if self.operationType.get() == '2':
                 if not self.thresholdEntry.get():
                     self.errorPopup("Error:Threshold was not given.\nYou must give threshold parameter to do that binarization")
                 else:
                     threshold = int(self.thresholdEntry.get())
                     if 0 <= threshold <= 255:
-                        self.thresholdBinarization(threshold) if self.switchOptimizedState.get() == "off" else self.thresholdBinarizationOptimized(threshold)
+                        self.thresholdBinarization(threshold, optimization)
+                        # self.thresholdBinarization(threshold) if self.switchOptimizedState.get() == "off" else self.thresholdBinarizationOptimized(threshold)
                     else:
                         self.errorPopup(f"Error:Threshold must be in range of 0 to 255 not {threshold}")
-            elif self.operationType.get() == '7':
+            elif self.operationType.get() == '3':
                 if not self.thresholdEntry.get():
                     self.errorPopup("Error:Percent of black pixels was not given.\nYou must give percent of black pixels parameter to do that binarization")
                 else:
                     percent = int(self.thresholdEntry.get())
                     if 0 <= percent <= 100:
-                        self.percentBlackPixelsBinarization(percent) if self.switchOptimizedState.get() == "off" else self.percentBlackPixelsBinarizationOptimized(percent)
+                        self.percentBlackPixelsBinarization(percent, optimization)
+                        # self.percentBlackPixelsBinarization(percent) if self.switchOptimizedState.get() == "off" else self.percentBlackPixelsBinarizationOptimized(percent)
                     else:
                         self.errorPopup(f"Error:Percent of black pixels must be in range of 0 to 100 not {percent}")
+            elif self.operationType.get() == '4':
+                self.meanIterationBinarization(optimization)
+            # elif self.operationType.get() == '6':
+            #     self.minimumErrorBinarization() if self.switchOptimizedState.get() == "off" else self.minimumErrorBinarization()
             else:
                 print("Nie ma takiej operacji")
         else:
             self.errorPopup("Error: There's no image loaded.")
 
-    def percentBlackPixelsBinarization(self, percent):
+    def meanIterationBinarization(self, optimized):
         self.measureTime("START")
         if self.image:
-            self.createHistogram()
+            histogram = self.createHistogram()
+            threshold = 128
+            while True:
+                # podział histogramu na lewa i prawa strone
+                leftPart = histogram[:threshold]
+                rightPart = histogram[threshold:]
+                # stworzenie tablicy indexów lewej strony
+                leftIndexes = np.arange(len(leftPart))
+                # srednia lewej strony wyliczona z sumy (index * wartosc dla tego indexu) dzielona przez sume wartości strony
+                leftMean = np.sum(leftIndexes * leftPart) / np.sum(leftPart)
+                # stworzenie tablicy indexów prawej strony
+                rightIndexes = np.arange(len(leftPart), len(leftPart)+len(rightPart))
+                # srednia prawej strony wyliczona z sumy (index * wartosc dla tego indexu) dzielona przez sume wartości strony
+                rightMean = np.sum(rightIndexes * rightPart) / np.sum(rightPart)
+                # srednia z lewej i prawej strony
+                newThreshold = round((leftMean + rightMean) / 2)
+                # print(f"Lewa czesc:\n{leftPart}\nPrawa czesc:\n{rightPart}\nLewe indexy:\n{leftIndexes}\nPrawe indexy:\n{rightIndexes}\nLewa srednia: {leftMean}\nPrawa srednia: {rightMean}\nStary prog: {threshold}\nNowy prog: {newThreshold}")
+                # sprawdzenie czy nowy prog jest rowny staremu, jesli nie to powtarzamy operacje
+                if newThreshold == threshold:
+                    break
+                else:
+                    threshold = newThreshold
+            print(f"Ostateczny prog = {threshold}")
+            # lookup table
+            thresholdTable = np.zeros(256, dtype=np.int32)
+            for i in range(256):
+                thresholdTable[i] = 255 if i >= threshold else 0
+            if optimized:
+                self.pixels = thresholdTable[self.pixels]
+            else:
+                height, width, _ = self.pixels.shape
+                for y in range(0, height):
+                    for x in range(0, width):
+                        for c in range(3):
+                            self.pixels[y, x, c] = thresholdTable[self.pixels[y, x, c]]
+            self.limitPixelsAndShowImage(self.pixels, True)
+        self.measureTime("END")
+
+    # def minimumErrorBinarization(self):
+    #     print("Min error")
+
+    def percentBlackPixelsBinarization(self, percent, optimized):
+        self.measureTime("START")
+        if self.image:
+            histogram = self.createHistogram()
             height, width, color = self.pixels.shape
             allColor = height*width
             requirement = allColor * percent / 100
             sumValues = 0
             thresholdIndex = 0
-            for index, value in enumerate(self.histogram):
+            for index, value in enumerate(histogram):
                 sumValues += value
                 if sumValues >= requirement:
                     thresholdIndex = index
@@ -287,31 +335,34 @@ class ImageRefactorApp:
             thresholdTable = np.zeros(256, dtype=np.int32)
             for i in range(256):
                 thresholdTable[i] = 255 if i >= thresholdIndex else 0
-            height, width, _ = self.pixels.shape
-            for y in range(0, height):
-                for x in range(0, width):
-                    for c in range(3):
-                        self.pixels[y, x, c] = thresholdTable[self.pixels[y, x, c]]
+            if optimized:
+                self.pixels = thresholdTable[self.pixels]
+            else:
+                height, width, _ = self.pixels.shape
+                for y in range(0, height):
+                    for x in range(0, width):
+                        for c in range(3):
+                            self.pixels[y, x, c] = thresholdTable[self.pixels[y, x, c]]
             self.limitPixelsAndShowImage(self.pixels, True)
         self.measureTime("END")
 
 
-    def percentBlackPixelsBinarizationOptimized(self, percent):
-        if self.image:
-            self.createHistogram()
-            height, width, color = self.pixels.shape
-            allColor = height*width
-            requirement = allColor * percent / 100
-            sumValues = 0
-            for index, value in enumerate(self.histogram):
-                sumValues += value
-                if sumValues >= requirement:
-                    return self.thresholdBinarizationOptimized(index)
+    # def percentBlackPixelsBinarizationOptimized(self, percent):
+    #     if self.image:
+    #         histogram = self.createHistogram()
+    #         height, width, color = self.pixels.shape
+    #         allColor = height*width
+    #         requirement = allColor * percent / 100
+    #         sumValues = 0
+    #         for index, value in enumerate(histogram):
+    #             sumValues += value
+    #             if sumValues >= requirement:
+    #                 return self.thresholdBinarizationOptimized(index)
 
-    def createHistogram(self, forAllColors=False):
+    def createHistogram(self):
         self.measureTime("START")
         if self.image:
-            self.histogram = np.zeros(256, dtype=np.int32)
+            histogram = np.zeros(256, dtype=np.int32)
             # height, width, color = self.pixels.shape
             # for y in range(height):
             #     for x in range(width):
@@ -319,37 +370,42 @@ class ImageRefactorApp:
             uniqueValues, counts = np.unique(self.pixels[:, :, 0], return_counts=True)
             #print(uniqueValues, counts)
             for value, count in zip(uniqueValues, counts):
-                self.histogram[value] = count
+                histogram[value] = count
             # print(self.histogram)
         self.measureTime("END")
+        return histogram
 
-    def thresholdBinarization(self, thresholdValue):
+    def thresholdBinarization(self, thresholdValue, optimized):
         self.measureTime("START")
         if self.image:
             # # lookup table
             thresholdTable = np.zeros(256, dtype=np.int32)
             for i in range(256):
                 thresholdTable[i] = 255 if i >= thresholdValue else 0
-            height, width, _ = self.pixels.shape
-            for y in range(0, height):
-                for x in range(0, width):
-                    for c in range(3):
-                        self.pixels[y, x, c] = thresholdTable[self.pixels[y, x, c]]
-                        #self.pixels[y, x, c] = 255 if self.pixels[y, x, c] >= thresholdValue else 0
+            if optimized:
+                self.pixels = thresholdTable[self.pixels]  # version with use of lookup table
+                # self.pixels = np.where(self.pixels >= thresholdValue, 255, 0) #  simple version
+            else:
+                height, width, _ = self.pixels.shape
+                for y in range(0, height):
+                    for x in range(0, width):
+                        for c in range(3):
+                            self.pixels[y, x, c] = thresholdTable[self.pixels[y, x, c]]
+                            #self.pixels[y, x, c] = 255 if self.pixels[y, x, c] >= thresholdValue else 0
             self.limitPixelsAndShowImage(self.pixels, True)
         self.measureTime("END")
 
-    def thresholdBinarizationOptimized(self, thresholdValue):
-        self.measureTime("START")
-        if self.image:
-            # lookup table
-            thresholdTable = np.zeros(256, dtype=np.int32)
-            for i in range(256):
-                thresholdTable[i] = 255 if i >= thresholdValue else 0
-            self.pixels = thresholdTable[self.pixels]  # version with use of lookup table
-            #self.pixels = np.where(self.pixels >= thresholdValue, 255, 0) #  simple version
-            self.limitPixelsAndShowImage(self.pixels, True)
-        self.measureTime("END")
+    # def thresholdBinarizationOptimized(self, thresholdValue):
+    #     self.measureTime("START")
+    #     if self.image:
+    #         # lookup table
+    #         thresholdTable = np.zeros(256, dtype=np.int32)
+    #         for i in range(256):
+    #             thresholdTable[i] = 255 if i >= thresholdValue else 0
+    #         self.pixels = thresholdTable[self.pixels]  # version with use of lookup table
+    #         #self.pixels = np.where(self.pixels >= thresholdValue, 255, 0) #  simple version
+    #         self.limitPixelsAndShowImage(self.pixels, True)
+    #     self.measureTime("END")
 
     def greyConversion(self, adjusted=True):
         self.measureTime("START")
