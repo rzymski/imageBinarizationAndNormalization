@@ -346,19 +346,6 @@ class ImageRefactorApp:
             self.limitPixelsAndShowImage(self.pixels, True)
         self.measureTime("END")
 
-
-    # def percentBlackPixelsBinarizationOptimized(self, percent):
-    #     if self.image:
-    #         histogram = self.createHistogram()
-    #         height, width, color = self.pixels.shape
-    #         allColor = height*width
-    #         requirement = allColor * percent / 100
-    #         sumValues = 0
-    #         for index, value in enumerate(histogram):
-    #             sumValues += value
-    #             if sumValues >= requirement:
-    #                 return self.thresholdBinarizationOptimized(index)
-
     def createHistogram(self):
         self.measureTime("START")
         if self.image:
@@ -394,18 +381,6 @@ class ImageRefactorApp:
                             #self.pixels[y, x, c] = 255 if self.pixels[y, x, c] >= thresholdValue else 0
             self.limitPixelsAndShowImage(self.pixels, True)
         self.measureTime("END")
-
-    # def thresholdBinarizationOptimized(self, thresholdValue):
-    #     self.measureTime("START")
-    #     if self.image:
-    #         # lookup table
-    #         thresholdTable = np.zeros(256, dtype=np.int32)
-    #         for i in range(256):
-    #             thresholdTable[i] = 255 if i >= thresholdValue else 0
-    #         self.pixels = thresholdTable[self.pixels]  # version with use of lookup table
-    #         #self.pixels = np.where(self.pixels >= thresholdValue, 255, 0) #  simple version
-    #         self.limitPixelsAndShowImage(self.pixels, True)
-    #     self.measureTime("END")
 
     def greyConversion(self, adjusted=True):
         self.measureTime("START")
