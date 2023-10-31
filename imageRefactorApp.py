@@ -57,9 +57,13 @@ class ImageRefactorApp:
         self.pixelGreenEntry.grid(row=3, column=1)
         self.pixelBlueEntry = Entry(self.pixelInfoLabel, state=DISABLED, disabledforeground="black", disabledbackground="white", justify=CENTER)
         self.pixelBlueEntry.grid(row=4, column=1)
+        # Switch for optimization
+        self.switchOptimizedState = StringVar(value="on")
+        self.optimizationSwitch = ctk.CTkSwitch(self.frame, text="Optimization", variable=self.switchOptimizedState, onvalue="on", offvalue="off", button_color="black")  # progress_color="blue"
+        self.optimizationSwitch.grid(row=4, column=0, sticky="WE")
         # LabelFrame for normalization
         self.normalizationLabel = LabelFrame(self.frame, text="Normalization", padx=10, pady=10, labelanchor="nw")
-        self.normalizationLabel.grid(row=4, column=0, sticky="WE")
+        self.normalizationLabel.grid(row=5, column=0, sticky="WE")
         # RadioButtons for normalization
         self.normalizationType = StringVar(value="0")
         self.histogramExpansionRadioButton = Radiobutton(self.normalizationLabel, text="Expand histogram", value="0", variable=self.normalizationType)
@@ -70,23 +74,17 @@ class ImageRefactorApp:
         self.histogramSubmitButton.grid(row=2, column=0, sticky="WE")
         # LabelFrame for binarization
         self.binarizationOperationsLabel = LabelFrame(self.frame, text="Binarization", padx=10, pady=10, labelanchor="nw")
-        self.binarizationOperationsLabel.grid(row=5, column=0, sticky="WE")
+        self.binarizationOperationsLabel.grid(row=6, column=0, sticky="WE")
         # RadioButtons for binarization
-        self.switchOptimizedState = StringVar(value="on")
-        self.optimizationSwitch = ctk.CTkSwitch(self.binarizationOperationsLabel, text="Optimization", variable=self.switchOptimizedState, onvalue="on", offvalue="off", button_color="black")  # progress_color="blue"
-        self.optimizationSwitch.grid(row=0, column=0, sticky="WE")
-        # self.switchConvertToGray = StringVar(value="yes")
-        # self.switchConvertToGray = ctk.CTkSwitch(self.binarizationOperationsLabel, text="Convert to greyscale before binarization", variable=self.switchConvertToGray, onvalue="yes", offvalue="no", button_color="black")  # progress_color="blue"
-        # self.switchConvertToGray.grid(row=1, column=0, sticky="WE")
-        self.operationType = StringVar(value="2")
-        self.radioManually = Radiobutton(self.binarizationOperationsLabel, text="Manually", value="2", variable=self.operationType, command=self.onOperationSelect)
-        self.radioManually.grid(row=2, column=0, sticky="W", columnspan=2)
-        self.radioPercentBlackSelection = Radiobutton(self.binarizationOperationsLabel, text="Percent Black Selection", value="3", variable=self.operationType, command=self.onOperationSelect)
-        self.radioPercentBlackSelection.grid(row=3, column=0, sticky="W", columnspan=2)
-        self.radioMeanIteration = Radiobutton(self.binarizationOperationsLabel, text="Mean iteration", value="4", variable=self.operationType, command=self.onOperationSelect)
-        self.radioMeanIteration.grid(row=4, column=0, sticky="W", columnspan=2)
-        self.radioMinimumError = Radiobutton(self.binarizationOperationsLabel, text="Minimum error", value="6", variable=self.operationType, command=self.onOperationSelect)
-        self.radioMinimumError.grid(row=6, column=0, sticky="W", columnspan=2)
+        self.operationType = StringVar(value="1")
+        self.radioManually = Radiobutton(self.binarizationOperationsLabel, text="Manually", value="1", variable=self.operationType, command=self.onOperationSelect)
+        self.radioManually.grid(row=1, column=0, sticky="W", columnspan=2)
+        self.radioPercentBlackSelection = Radiobutton(self.binarizationOperationsLabel, text="Percent Black Selection", value="2", variable=self.operationType, command=self.onOperationSelect)
+        self.radioPercentBlackSelection.grid(row=2, column=0, sticky="W", columnspan=2)
+        self.radioMeanIteration = Radiobutton(self.binarizationOperationsLabel, text="Mean iteration", value="3", variable=self.operationType, command=self.onOperationSelect)
+        self.radioMeanIteration.grid(row=3, column=0, sticky="W", columnspan=2)
+        self.radioMinimumError = Radiobutton(self.binarizationOperationsLabel, text="Minimum error", value="5", variable=self.operationType, command=self.onOperationSelect)
+        self.radioMinimumError.grid(row=5, column=0, sticky="W", columnspan=2)
         # Parameters for binarization
         vcmd = (self.binarizationOperationsLabel.register(self.validateEntry))
         self.parameterOperationsLabel = LabelFrame(self.binarizationOperationsLabel, text="Threshold:", padx=10, pady=10, labelanchor="nw")
@@ -113,15 +111,15 @@ class ImageRefactorApp:
             return False
 
     def onOperationSelect(self):
-        if self.operationType.get() == '2':
+        if self.operationType.get() == '1':
             self.parameterOperationsLabel.grid(row=8, column=0, sticky="WE")
             self.parameterOperationsLabel.configure(text="Threshold:")
-        elif self.operationType.get() == '3':
+        elif self.operationType.get() == '2':
             self.parameterOperationsLabel.grid(row=8, column=0, sticky="WE")
             self.parameterOperationsLabel.configure(text="Procent of black pixels:")
-        elif self.operationType.get() == '4':
+        elif self.operationType.get() == '3':
             self.parameterOperationsLabel.grid_forget()
-        elif self.operationType.get() == '6':
+        elif self.operationType.get() == '5':
             self.parameterOperationsLabel.grid_forget()
         else:
             raise Exception("Nie ma takiej opcji")
@@ -244,7 +242,7 @@ class ImageRefactorApp:
         if self.image:
             self.greyConversion()
             optimization = False if self.switchOptimizedState.get() == "off" else True
-            if self.operationType.get() == '2':
+            if self.operationType.get() == '1':
                 if not self.thresholdEntry.get():
                     self.errorPopup("Error:Threshold was not given.\nYou must give threshold parameter to do that binarization")
                 else:
@@ -254,7 +252,7 @@ class ImageRefactorApp:
                         # self.thresholdBinarization(threshold) if self.switchOptimizedState.get() == "off" else self.thresholdBinarizationOptimized(threshold)
                     else:
                         self.errorPopup(f"Error:Threshold must be in range of 0 to 255 not {threshold}")
-            elif self.operationType.get() == '3':
+            elif self.operationType.get() == '2':
                 if not self.thresholdEntry.get():
                     self.errorPopup("Error:Percent of black pixels was not given.\nYou must give percent of black pixels parameter to do that binarization")
                 else:
@@ -264,11 +262,12 @@ class ImageRefactorApp:
                         # self.percentBlackPixelsBinarization(percent) if self.switchOptimizedState.get() == "off" else self.percentBlackPixelsBinarizationOptimized(percent)
                     else:
                         self.errorPopup(f"Error:Percent of black pixels must be in range of 0 to 100 not {percent}")
-            elif self.operationType.get() == '4':
+            elif self.operationType.get() == '3':
                 self.meanIterationBinarization(optimization)
-            # elif self.operationType.get() == '6':
+            # elif self.operationType.get() == '5':
             #     self.minimumErrorBinarization() if self.switchOptimizedState.get() == "off" else self.minimumErrorBinarization()
             else:
+                self.reloadOriginalJPG()
                 print("Nie ma takiej operacji")
         else:
             self.errorPopup("Error: There's no image loaded.")
