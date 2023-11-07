@@ -8,7 +8,7 @@ import tkinter.font as font
 from copy import deepcopy
 import re
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 class ImageRefactorApp:
     def __init__(self, root):
@@ -83,8 +83,8 @@ class ImageRefactorApp:
         self.radioPercentBlackSelection.grid(row=2, column=0, sticky="W", columnspan=2)
         self.radioMeanIteration = Radiobutton(self.binarizationOperationsLabel, text="Mean iteration", value="3", variable=self.operationType, command=self.onOperationSelect)
         self.radioMeanIteration.grid(row=3, column=0, sticky="W", columnspan=2)
-        self.radioMinimumError = Radiobutton(self.binarizationOperationsLabel, text="Minimum error", value="5", variable=self.operationType, command=self.onOperationSelect)
-        self.radioMinimumError.grid(row=5, column=0, sticky="W", columnspan=2)
+        # self.radioMinimumError = Radiobutton(self.binarizationOperationsLabel, text="Minimum error", value="5", variable=self.operationType, command=self.onOperationSelect)
+        # self.radioMinimumError.grid(row=5, column=0, sticky="W", columnspan=2)
         # Parameters for binarization
         vcmd = (self.binarizationOperationsLabel.register(self.validateEntry))
         self.parameterOperationsLabel = LabelFrame(self.binarizationOperationsLabel, text="Threshold:", padx=10, pady=10, labelanchor="nw")
@@ -95,6 +95,14 @@ class ImageRefactorApp:
         self.operationSubmitButton = Button(self.binarizationOperationsLabel, text="Perform binarization", command=self.doBinarization)
         self.operationSubmitButton.grid(row=9, column=0, sticky="WE", columnspan=2)
 
+        # show histogram
+        self.showHistogramButtonRed = Button(self.frame, text="Show red histogram", padx=10, pady=10, command=lambda: self.showHistogram("red"))
+        self.showHistogramButtonRed.grid(row=7, column=0, sticky="WE")
+        self.showHistogramButtonGreen = Button(self.frame, text="Show green histogram", padx=10, pady=10, command=lambda: self.showHistogram("green"))
+        self.showHistogramButtonGreen.grid(row=8, column=0, sticky="WE")
+        self.showHistogramButtonBlue = Button(self.frame, text="Show blue histogram", padx=10, pady=10, command=lambda: self.showHistogram("blue"))
+        self.showHistogramButtonBlue.grid(row=9, column=0, sticky="WE")
+
         self.imageSpace = Canvas(self.root, bg="white")
         self.imageSpace.pack(fill="both", expand=True)
         self.image = None
@@ -103,6 +111,22 @@ class ImageRefactorApp:
         self.movedY = 0
         self.originalImage = None
         self.pixels = None
+
+    def showHistogram(self, color):
+        histogramRed, histogramGreen, histogramBlue = self.getHistograms()
+        if color == "red":
+            histogram = histogramRed
+        elif color == "green":
+            histogram = histogramGreen
+        else:
+            histogram = histogramBlue
+        indexes = list(range(len(histogram)))
+        plt.bar(indexes, histogram, width=1.0, color='blue')  # Adjust width as needed
+        plt.title('Histogram')
+        plt.xlabel('Indexes')
+        plt.ylabel('Amount of pixels of this value')
+        plt.show()
+
 
     def validateEntry(self, P):
         if P == "" or (str.isdigit(P)):
@@ -182,6 +206,7 @@ class ImageRefactorApp:
                 print(f"min={minIndex} max={maxIndex}")
                 if minIndex == maxIndex:
                     self.errorPopup("Nie mozna rozciagnac histogramu, bo min == max")
+                    continue
                 if minIndex == 0 and maxIndex == 255:
                     countColorsNotPossibleToExpand += 1
                     continue
