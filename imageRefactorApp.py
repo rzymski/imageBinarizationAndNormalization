@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 class ImageRefactorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Image viewer Piotr Szumowski")
+        self.root.title("Image refactor Piotr Szumowski")
         bigFont = font.Font(size=12, weight="bold")
         self.screen_width = root.winfo_screenwidth()
         self.screen_height = root.winfo_screenheight()
@@ -325,8 +325,8 @@ class ImageRefactorApp:
             print(f"Ostateczny prog = {threshold}")
             # lookup table
             thresholdTable = np.zeros(256, dtype=np.int32)
-            for i in range(256):
-                thresholdTable[i] = 255 if i >= threshold else 0
+            for i in range(threshold, 256):
+                thresholdTable[i] = 255
             if optimized:
                 self.pixels = thresholdTable[self.pixels]
             else:
