@@ -59,7 +59,7 @@ class ImageRefactorApp:
         self.pixelBlueEntry.grid(row=4, column=1)
         # Switch for optimization
         self.switchOptimizedState = StringVar(value="on")
-        self.optimizationSwitch = ctk.CTkSwitch(self.frame, text="Optimization", variable=self.switchOptimizedState, onvalue="on", offvalue="off", button_color="black")  # progress_color="blue"
+        self.optimizationSwitch = ctk.CTkSwitch(self.frame, text="Optimization", variable=self.switchOptimizedState, onvalue="on", offvalue="off", button_color="black", text_color="black")  # progress_color="blue"
         self.optimizationSwitch.grid(row=4, column=0, sticky="WE")
         # LabelFrame for normalization
         self.normalizationLabel = LabelFrame(self.frame, text="Normalization", padx=10, pady=10, labelanchor="nw")
